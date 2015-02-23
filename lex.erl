@@ -1,4 +1,4 @@
--file("/usr/lib/erlang/lib/parsetools-2.0.10/include/leexinc.hrl", 0).
+-file("/usr/lib/erlang/lib/parsetools-2.0.12/include/leexinc.hrl", 0).
 %% The source of this file is part of leex distribution, as such it
 %% has the same Copyright as the other files in the leex
 %% distribution. The Copyright is defined in the accompanying file
@@ -15,7 +15,7 @@
 -file("./lex.xrl", 70).
 
 
--file("/usr/lib/erlang/lib/parsetools-2.0.10/include/leexinc.hrl", 14).
+-file("/usr/lib/erlang/lib/parsetools-2.0.12/include/leexinc.hrl", 14).
 
 format_error({illegal,S}) -> ["illegal characters ",io_lib:write_string(S)];
 format_error({user,S}) -> S.
@@ -40,8 +40,8 @@ string(Ics0, L0, Tcs, Ts) ->
             string_cont(Ics1, L1, yyaction(A, Alen, Tcs, L0), Ts);
         {reject,_Alen,Tlen,_Ics1,L1,_S1} ->  % After a non-accepting state
             {error,{L0,?MODULE,{illegal,yypre(Tcs, Tlen+1)}},L1};
-        {A,Alen,_Tlen,_Ics1,L1,_S1} ->
-            string_cont(yysuf(Tcs, Alen), L1, yyaction(A, Alen, Tcs, L0), Ts)
+        {A,Alen,_Tlen,_Ics1,_L1,_S1} ->
+            string_cont(yysuf(Tcs, Alen), L0, yyaction(A, Alen, Tcs, L0), Ts)
     end.
 
 %% string_cont(RestChars, Line, Token, Tokens)
@@ -109,8 +109,8 @@ token(S0, Ics0, L0, Tcs, Tlen0, Tline, A0, Alen0) ->
         {reject,_Alen1,Tlen1,Ics1,L1,_S1} ->    % No token match
             Error = {Tline,?MODULE,{illegal,yypre(Tcs, Tlen1+1)}},
             {done,{error,Error,L1},Ics1};
-        {A1,Alen1,_Tlen1,_Ics1,L1,_S1} ->       % Use last accept match
-            token_cont(yysuf(Tcs, Alen1), L1, yyaction(A1, Alen1, Tcs, Tline))
+        {A1,Alen1,_Tlen1,_Ics1,_L1,_S1} ->       % Use last accept match
+            token_cont(yysuf(Tcs, Alen1), L0, yyaction(A1, Alen1, Tcs, Tline))
     end.
 
 %% token_cont(RestChars, Line, Token)
@@ -181,9 +181,9 @@ tokens(S0, Ics0, L0, Tcs, Tlen0, Tline, Ts, A0, Alen0) ->
             %% Skip rest of tokens.
             Error = {L1,?MODULE,{illegal,yypre(Tcs, Tlen1+1)}},
             skip_tokens(yysuf(Tcs, Tlen1+1), L1, Error);
-        {A1,Alen1,_Tlen1,_Ics1,L1,_S1} ->
+        {A1,Alen1,_Tlen1,_Ics1,_L1,_S1} ->
             Token = yyaction(A1, Alen1, Tcs, Tline),
-            tokens_cont(yysuf(Tcs, Alen1), L1, Token, Ts)
+            tokens_cont(yysuf(Tcs, Alen1), L0, Token, Ts)
     end.
 
 %% tokens_cont(RestChars, Line, Token, Tokens)
@@ -610,4 +610,4 @@ yyaction_13(TokenChars, TokenLine) ->
 yyaction_14(TokenChars, TokenLine) ->
      { token, { '@', TokenLine, TokenChars } } .
 
--file("/usr/lib/erlang/lib/parsetools-2.0.10/include/leexinc.hrl", 282).
+-file("/usr/lib/erlang/lib/parsetools-2.0.12/include/leexinc.hrl", 282).

@@ -57,8 +57,14 @@ loop(St, {leave, _Channel}) ->
 %%%%%%%%%%%%%%%%%%%%%
 %%% Sending messages
 %%%%%%%%%%%%%%%%%%%%%
-loop(St, {msg_from_GUI, _Channel, _Msg}) ->
-     {ok, St} ;
+loop(St, {msg_from_GUI, Channel, Msg}) ->
+    case lists:member(Channel, St#cl_st.channels) of
+        true ->
+            request(list_to_atom(Channel), {message_to_all, Msg, self(), St#cl_st.nickname}),
+            {ok, St};
+        false ->
+            {{error, user_not_joined, "You are not a member of this channel"}, St}
+    end;
 
 
 %%%%%%%%%%%%%%
@@ -75,7 +81,7 @@ loop(St,{nick, Nick}) ->
         St#cl_st.server == none ->
             {ok, St#cl_st{nickname = Nick}};
         true ->
-            {{error, user_already_connected, "To change the nickname enter /disconnect first"}, St}
+            {{error, user_already_connected, "To change the nickname execute /disconnect first"}, St}
     end;
 
 %%%%%%%%%%%%%

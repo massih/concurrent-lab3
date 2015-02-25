@@ -25,8 +25,22 @@ loop(St, {connect, Server}) ->
 %%%% Disconnect
 %%%%%%%%%%%%%%%
 loop(St, disconnect) ->
-    
-     {ok, St} ;
+    case St#cl_st.server of
+        none ->
+            {{error, user_not_connected, "You are not connected to any server"}, St};
+        _ ->
+            case length(St#cl_st.channels) of
+                0 ->
+                    case catch(request(list_to_atom(St#cl_st.server), {disconnect, self() , St#cl_st.nickname})) of
+                         ok ->
+                            {ok, St#cl_st{server = none} } ;
+                        {'EXIT',_Reason} ->
+                            { {error, server_not_reached,"Server not found"}, St}
+                    end;
+                _ ->
+                    {{error, leave_channels_first, "You should leave all joined channels first"}, St}
+            end
+    end;
 
 %%%%%%%%%%%%%%
 %%% Join
@@ -56,8 +70,13 @@ loop(St, whoiam) ->
 %%%%%%%%%%
 %%% Nick
 %%%%%%%%%%
-loop(St,{nick,_Nick}) ->
-    {ok, St} ;
+loop(St,{nick, Nick}) ->
+    if
+        St#cl_st.server == none ->
+            {ok, St#cl_st{nickname = Nick}};
+        true ->
+            {{error, user_already_connected, "To change the nickname enter /disconnect first"}, St}
+    end;
 
 %%%%%%%%%%%%%
 %%% Debug
@@ -82,4 +101,4 @@ decompose_msg(_MsgFromClient) ->
 
 
 initial_state(Nick, GUIName) ->
-    #cl_st { nickname = Nick, gui = GUIName }.
+    #cl_st { nickname = Nick, gui = GUIName, server = none, channels = [] }.

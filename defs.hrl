@@ -12,7 +12,7 @@
 % This record defines the structure of the 
 % server process. 
 % 
--record(server_st, {server, connected_pids, connected_nicks}).
+-record(server_st, {server, connected_pids, connected_nicks, channels}).
 
 
 % This record defines the structure of the 

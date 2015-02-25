@@ -12,6 +12,10 @@ loop(St, {connect, Pid , Client}) ->
 			{ok,  NewSt}			
 	end;
 
+loop(St, {disconnect, Pid , Client}) ->
+		NewSt = St#server_st{connected_pids = lists:delete(Pid, St#server_st.connected_pids), connected_nicks = lists:delete(Client, St#server_st.connected_nicks)},
+		{ok,  NewSt};
+
 loop(_St,_Msg) ->
 	{ok,_St}.
 		

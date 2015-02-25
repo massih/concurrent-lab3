@@ -1,18 +1,31 @@
 -module(client).
 -export([loop/2, initial_state/2]).
-
+-import(helper, [start/3, request/2, request/3, requestAsync/2, timeSince/1]).
 -include_lib("./defs.hrl").
 
 %%%%%%%%%%%%%%%
 %%%% Connect
 %%%%%%%%%%%%%%%
-loop(St, {connect, _Server}) ->
-    {ok, St} ;
+loop(St, {connect, Server}) ->
+    case Server == St#cl_st.server of
+        true ->
+            {{error, user_already_connected, "You are already connected"}, St};
+        false ->
+            case catch(request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})) of
+                ok ->
+                    {ok, St#cl_st{server = Server} } ;
+                {'EXIT', {error, nick_already_taken}} ->
+                    { {error, user_already_connected,"The nickname is already taken"}, St};
+                {'EXIT',_Reason} ->
+                    { {error, server_not_reached,"Server not found"}, St}
+            end
+    end;
 
 %%%%%%%%%%%%%%%
 %%%% Disconnect
 %%%%%%%%%%%%%%%
 loop(St, disconnect) ->
+    
      {ok, St} ;
 
 %%%%%%%%%%%%%%
@@ -38,7 +51,7 @@ loop(St, {msg_from_GUI, _Channel, _Msg}) ->
 %%% WhoIam
 %%%%%%%%%%%%%%
 loop(St, whoiam) ->
-    {"user01", St} ;
+    {St#cl_st.nickname, St} ;
 
 %%%%%%%%%%
 %%% Nick
@@ -69,4 +82,4 @@ decompose_msg(_MsgFromClient) ->
 
 
 initial_state(Nick, GUIName) ->
-    #cl_st { gui = GUIName }.
+    #cl_st { nickname = Nick, gui = GUIName }.

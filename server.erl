@@ -3,9 +3,23 @@
 
 -include_lib("./defs.hrl").
 
-loop(St, _Msg) -> 
-    {ok, St}. 
+loop(St, {connect, Pid , Client}) ->
+	case lists:member(Client, St#server_st.connected_nicks) of
+		true ->
+			{'EXIT', {error, nick_already_taken}};
+		false ->
+			NewSt = St#server_st{connected_pids = lists:append(St#server_st.connected_pids,[Pid]), connected_nicks = lists:append(St#server_st.connected_nicks,[Client])},
+			{ok,  NewSt}			
+	end;
+
+loop(_St,_Msg) ->
+	{ok,_St}.
+		
+    %{result, connect}.
+
+% loop(_St, _Msg) -> 
+%     {ok, _St}. 
 
 
-initial_state(_Server) ->
-    #server_st{}.
+initial_state(Server) ->
+    #server_st{server = Server, connected_nicks = [], connected_pids = []}.

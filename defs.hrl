@@ -5,9 +5,17 @@
 %
 % gui: it stores the name (or Pid) of the GUI process.
 %
--record(cl_st, {gui}).
+-record(cl_st, {nickname, gui, server, channels}).
+
+
     
 % This record defines the structure of the 
 % server process. 
 % 
--record(server_st, {}).
+-record(server_st, {server, connected_pids, connected_nicks}).
+
+
+% This record defines the structure of the 
+% channel process. 
+% 
+-record(channel_st, {channel, joined_pids, joined_nicks}).

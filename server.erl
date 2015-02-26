@@ -14,7 +14,9 @@ loop(St, {connect, Pid , Client}) ->
 			{ok,  NewSt}			
 	end;
 
-
+loop(St, {disconnect, Pid , Client}) ->
+		NewSt = St#server_st{connected_pids = lists:delete(Pid, St#server_st.connected_pids), connected_nicks = lists:delete(Client, St#server_st.connected_nicks)},
+		{ok,  NewSt};
 		
     %{result, connect}.
 
@@ -24,16 +26,16 @@ loop(St, {connect, Pid , Client}) ->
 loop(St, {join, Pid, Channel, Nickname}) ->
 	case (lists:member(Channel, St#server_st.channels)) of
 		true ->
-			case catch (request(list_to_atom(Channel), {connect, Channel, Pid, Nickname})) of
+			case catch (genserver:request(list_to_atom(Channel), {connect, Channel, Pid, Nickname})) of
 				ok ->
 					{ok, St#server_st{channels = lists:append(St#server_st.channels, [Channel])}}
 			end;
 		
 		false -> 
-			genserver:start(list_to_atom(Channel), initial_state_channel(Channel), fun loop_channel/2),
+			genserver:start(list_to_atom(Channel), initial_state_channel(Channel), fun server:loop_channel/2),
 			case catch genserver:request(list_to_atom(Channel), {connect, Channel, Pid, Nickname}) of
 				ok ->
-					{ok, St#server_st{channels = lists:append(St#server_st.channels, Channel) } };
+					{ok, St#server_st{channels = lists:append(St#server_st.channels, [Channel]) } };
 				{'EXIT', _Reason} ->
 					{ {error, could_initiate_loop_channel, _Reason}, St}
 			end

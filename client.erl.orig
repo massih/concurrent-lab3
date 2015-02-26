@@ -119,4 +119,8 @@ decompose_msg(_MsgFromClient) ->
 
 
 initial_state(Nick, GUIName) ->
+<<<<<<< HEAD
+    #cl_st { nickname = Nick, gui = GUIName , channels = [], server = none}.
+=======
     #cl_st { nickname = Nick, gui = GUIName, server = none, channels = [] }.
+>>>>>>> 344c91029b760aa37293a12d6fd6ef921dc49a83

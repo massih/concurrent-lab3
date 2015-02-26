@@ -31,8 +31,20 @@ loop(St, disconnect) ->
 %%%%%%%%%%%%%%
 %%% Join
 %%%%%%%%%%%%%%
-loop(St,{join,_Channel}) ->
-    {ok, St} ;
+loop(St,{join, Channel}) ->
+    case lists:member(Channel, St#cl_st.channels) of
+        true -> 
+            {{error, user_already_joined, "You are already join to this channel"}, St};
+        false ->
+            case catch request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
+                ok ->
+                    {ok, St#cl_st{ channels = lists:append(St#cl_st.channels, [Channel])}};
+
+                {'EXIT',_Reason} ->
+                    { {error, server_not_reached, _Reason}, St}
+
+            end
+    end;
 
 %%%%%%%%%%%%%%%
 %%%% Leave
@@ -82,4 +94,4 @@ decompose_msg(_MsgFromClient) ->
 
 
 initial_state(Nick, GUIName) ->
-    #cl_st { nickname = Nick, gui = GUIName }.
+    #cl_st { nickname = Nick, gui = GUIName , channels = [], server = none}.

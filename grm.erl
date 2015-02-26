@@ -8,7 +8,7 @@
 ff({_,_,Content}) -> Content.
  
 
--file("/usr/lib/erlang/lib/parsetools-2.0.12/include/yeccpre.hrl", 0).
+-file("/usr/local/lib/erlang/lib/parsetools-2.0.12/include/yeccpre.hrl", 0).
 %%
 %% %CopyrightBegin%
 %%

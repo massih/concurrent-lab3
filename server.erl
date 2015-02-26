@@ -4,7 +4,9 @@
 
 -include_lib("./defs.hrl").
 
-
+%%%%%%%%%%%%%%%%%%%%%%%
+%%% Connect to a server
+%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, {connect, Pid , Client}) ->
 	case lists:member(Client, St#server_st.connected_nicks) of
 		true ->
@@ -14,15 +16,16 @@ loop(St, {connect, Pid , Client}) ->
 			{ok,  NewSt}			
 	end;
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Disconnect from a server
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, {disconnect, Pid , Client}) ->
 		NewSt = St#server_st{connected_pids = lists:delete(Pid, St#server_st.connected_pids), connected_nicks = lists:delete(Client, St#server_st.connected_nicks)},
 		{ok,  NewSt};
-		
-    %{result, connect}.
 
-% loop(_St, _Msg) -> 
-%     {ok, _St}. 
-
+%%%%%%%%%%%%%%%%%%
+%%% Join a channel
+%%%%%%%%%%%%%%%%%%
 loop(St, {join, Pid, Channel, Nickname}) ->
 
 	case (lists:member(Channel, St#server_st.channels)) of
@@ -40,23 +43,18 @@ loop(St, {join, Pid, Channel, Nickname}) ->
 				{'EXIT', _Reason} ->
 					{ {error, could_initiate_loop_channel, _Reason}, St}
 			end
-	end;
+	end.
 
-loop(St,_Msg) ->
-	{ok,St}.
-
-initial_state(Server) ->
-    #server_st{server = Server, connected_nicks = [], connected_pids = [], channels =[]}.
-
-
-initial_state_channel(Channel) ->
-	#channel_st{channel_name = Channel, joined_pids = [], joined_nicks = []}.
-
-
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Connect to channel
+%%%%%%%%%%%%%%%%%%%%%%%
 loop_channel(St, {connect, Channel ,Pid, Nickname}) ->
 	{ok, St#channel_st{channel_name = Channel, joined_pids = lists:append( St#channel_st.joined_pids, [Pid]),
 	 joined_nicks = lists:append(St#channel_st.joined_nicks, [Nickname])}};
 
+%%%%%%%%%%%%%%%%%%%%
+%%%% Leave a channel
+%%%%%%%%%%%%%%%%%%%%
 loop_channel(St,{leave, Pid}) ->
 	{ok, St#channel_st{joined_pids = lists:delete(Pid, St#channel_st.joined_pids) } };
 
@@ -64,6 +62,9 @@ loop_channel(St,{message_to_all, Msg, Pid, Nickname}) ->
 	msg_to_all(St#channel_st.joined_pids, Msg, Pid, Nickname, St#channel_st.channel_name),
 	{ok, St}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Send message to all members of a channel
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 msg_to_all([], _Msg, _Pid, _Nickname, _Channel_name) ->
 	ok;
 
@@ -76,21 +77,14 @@ msg_to_all([H|T], Msg, Pid, Nickname, Channel_name) ->
 			msg_to_all(T, Msg, Pid, Nickname, Channel_name)
 	end.
 
-	
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Server initial state
+%%%%%%%%%%%%%%%%%%%%%%%%%
+initial_state(Server) ->
+    #server_st{server = Server, connected_nicks = [], connected_pids = [], channels =[]}.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Channel initial state
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+initial_state_channel(Channel) ->
+	#channel_st{channel_name = Channel, joined_pids = [], joined_nicks = []}.

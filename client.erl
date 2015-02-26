@@ -3,15 +3,16 @@
 -import(helper, [start/3, request/2, request/3, requestAsync/2, timeSince/1]).
 -include_lib("./defs.hrl").
 
-%%%%%%%%%%%%%%%
-%%%% Connect
-%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Connect to a server
+%%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, {connect, Server}) ->
-    case Server == St#cl_st.server of
+    case St#cl_st.server =/= none of
         true ->
             {{error, user_already_connected, "You are already connected"}, St};
         false ->
-            case catch(request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})) of
+           % genserver:request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})  
+            case catch (genserver:request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})) of
                 ok ->
                     {ok, St#cl_st{server = Server} } ;
                 {'EXIT', {error, nick_already_taken}} ->
@@ -21,30 +22,30 @@ loop(St, {connect, Server}) ->
             end
     end;
 
-%%%%%%%%%%%%%%%
-%%%% Disconnect
-%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Disconnect from a server
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, disconnect) ->
-    case St#cl_st.server of
-        none ->
+    case St#cl_st.server  == none of
+        true ->
             {{error, user_not_connected, "You are not connected to any server"}, St};
-        _ ->
-            case length(St#cl_st.channels) of
-                0 ->
-                    case catch(request(list_to_atom(St#cl_st.server), {disconnect, self() , St#cl_st.nickname})) of
+        false ->
+            case length(St#cl_st.channels) == 0 of
+                true ->
+                    case catch(genserver:request(list_to_atom(St#cl_st.server), {disconnect, self() , St#cl_st.nickname})) of
                          ok ->
                             {ok, St#cl_st{server = none} } ;
                         {'EXIT',_Reason} ->
                             { {error, server_not_reached,"Server not found"}, St}
                     end;
-                _ ->
+                false ->
                     {{error, leave_channels_first, "You should leave all joined channels first"}, St}
             end
     end;
 
-%%%%%%%%%%%%%%
-%%% Join
-%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%
+%%% Join a channel
+%%%%%%%%%%%%%%%%%%
 loop(St,{join, Channel}) ->
 
     case St#cl_st.server == none of 
@@ -55,7 +56,7 @@ loop(St,{join, Channel}) ->
                 true -> 
                     {{error, user_already_joined, "You are already join to this channel"}, St};
                 false ->
-                    case catch request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
+                    case catch genserver:request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
                         ok ->
                             {ok, St#cl_st{ channels = lists:append(St#cl_st.channels, [Channel])}};
 
@@ -66,9 +67,9 @@ loop(St,{join, Channel}) ->
             end        
     end;
 
-%%%%%%%%%%%%%%%
-%%%% Leave
-%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%
+%%% Leave a channel
+%%%%%%%%%%%%%%%%%%%
 loop(St, {leave, Channel}) ->  
     case St#cl_st.server == none of 
         true -> 
@@ -77,11 +78,12 @@ loop(St, {leave, Channel}) ->
             case lists:member(Channel, St#cl_st.channels) of
                 true ->
                     genserver:request(list_to_atom(Channel), {leave, self() } ),
-                    {ok, St#cl_st{channels = lists:delete(St#cl_st.channels, Channel) } };
+                    {ok, St#cl_st{channels = lists:delete(Channel, St#cl_st.channels) } };
                 false ->
-                    {error, {error, user_not_joined, "You are not member of such channel"}}
+                    {{error, user_not_joined, "You are not member of such channel"}, St}
             end
     end;
+
 %%%%%%%%%%%%%%%%%%%%%
 %%% Sending messages
 %%%%%%%%%%%%%%%%%%%%%
@@ -94,16 +96,15 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
             {{error, user_not_joined, "You are not a member of this channel"}, St}
     end;
 
-
-%%%%%%%%%%%%%%
-%%% WhoIam
-%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% WhoIam, Show the user's nickname
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, whoiam) ->
     {St#cl_st.nickname, St} ;
 
-%%%%%%%%%%
-%%% Nick
-%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+%%% Change a nickname
+%%%%%%%%%%%%%%%%%%%%%
 loop(St,{nick, Nick}) ->
     if
         St#cl_st.server == none ->
@@ -112,9 +113,9 @@ loop(St,{nick, Nick}) ->
             {{error, user_already_connected, "To change the nickname execute /disconnect first"}, St}
     end;
 
-%%%%%%%%%%%%%
+%%%%%%%%%
 %%% Debug
-%%%%%%%%%%%%%
+%%%%%%%%%
 loop(St, debug) ->
     {St, St} ;
 
@@ -133,6 +134,8 @@ loop(St = #cl_st { gui = GUIName }, MsgFromClient) ->
 decompose_msg(Msg) ->
     {_, _, _} = Msg.
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% Client initial state
+%%%%%%%%%%%%%%%%%%%%%%%%%
 initial_state(Nick, GUIName) ->
     #cl_st { nickname = Nick, gui = GUIName, server = none, channels = [] }.

@@ -46,33 +46,49 @@ loop(St, disconnect) ->
 %%% Join
 %%%%%%%%%%%%%%
 loop(St,{join, Channel}) ->
-    case lists:member(Channel, St#cl_st.channels) of
+
+    case St#cl_st.server == none of 
         true -> 
-            {{error, user_already_joined, "You are already join to this channel"}, St};
+            {{error, user_not_connected, "You have to connect to a server first"}, St};
         false ->
-            case catch request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
-                ok ->
-                    {ok, St#cl_st{ channels = lists:append(St#cl_st.channels, [Channel])}};
+            case lists:member(Channel, St#cl_st.channels) of
+                true -> 
+                    {{error, user_already_joined, "You are already join to this channel"}, St};
+                false ->
+                    case catch request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
+                        ok ->
+                            {ok, St#cl_st{ channels = lists:append(St#cl_st.channels, [Channel])}};
 
-                {'EXIT',_Reason} ->
-                    { {error, server_not_reached, _Reason}, St}
+                        {'EXIT',_Reason} ->
+                            { {error, server_not_reached, _Reason}, St}
 
-            end
+                    end
+            end        
     end;
 
 %%%%%%%%%%%%%%%
 %%%% Leave
 %%%%%%%%%%%%%%%
-loop(St, {leave, _Channel}) ->
-     {ok, St} ;
-
+loop(St, {leave, Channel}) ->  
+    case St#cl_st.server == none of 
+        true -> 
+            {{error, user_not_connected, "You have to connect to a server first"}, St};
+        false ->
+            case lists:member(Channel, St#cl_st.channels) of
+                true ->
+                    genserver:request(list_to_atom(Channel), {leave, self() } ),
+                    {ok, St#cl_st{channels = lists:delete(St#cl_st.channels, Channel) } };
+                false ->
+                    {error, {error, user_not_joined, "You are not member of such channel"}}
+            end
+    end;
 %%%%%%%%%%%%%%%%%%%%%
 %%% Sending messages
 %%%%%%%%%%%%%%%%%%%%%
 loop(St, {msg_from_GUI, Channel, Msg}) ->
     case lists:member(Channel, St#cl_st.channels) of
         true ->
-            request(list_to_atom(Channel), {message_to_all, Msg, self(), St#cl_st.nickname}),
+            genserver:request(list_to_atom(Channel), {message_to_all, Msg, self(), St#cl_st.nickname}),
             {ok, St};
         false ->
             {{error, user_not_joined, "You are not a member of this channel"}, St}
@@ -105,8 +121,8 @@ loop(St, debug) ->
 %%%%%%%%%%%%%%%%%%%%%
 %%%% Incoming message
 %%%%%%%%%%%%%%%%%%%%%
-loop(St = #cl_st { gui = GUIName }, _MsgFromClient) ->
-    {Channel, Name, Msg} = decompose_msg(_MsgFromClient),
+loop(St = #cl_st { gui = GUIName }, MsgFromClient) ->
+    {Channel, Name, Msg} = decompose_msg(MsgFromClient),
     gen_server:call(list_to_atom(GUIName), {msg_to_GUI, Channel, Name++"> "++Msg}),
     {ok, St}.
 
@@ -114,8 +130,8 @@ loop(St = #cl_st { gui = GUIName }, _MsgFromClient) ->
 % This function will take a message from the client and
 % decomposed in the parts needed to tell the GUI to display
 % it in the right chat room.
-decompose_msg(_MsgFromClient) ->
-    {"", "", ""}.
+decompose_msg(Msg) ->
+    {_, _, _} = Msg.
 
 
 initial_state(Nick, GUIName) ->

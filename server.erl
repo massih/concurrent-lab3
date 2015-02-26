@@ -24,6 +24,7 @@ loop(St, {disconnect, Pid , Client}) ->
 %     {ok, _St}. 
 
 loop(St, {join, Pid, Channel, Nickname}) ->
+
 	case (lists:member(Channel, St#server_st.channels)) of
 		true ->
 			case catch (genserver:request(list_to_atom(Channel), {connect, Channel, Pid, Nickname})) of
@@ -56,6 +57,40 @@ loop_channel(St, {connect, Channel ,Pid, Nickname}) ->
 	{ok, St#channel_st{channel_name = Channel, joined_pids = lists:append( St#channel_st.joined_pids, [Pid]),
 	 joined_nicks = lists:append(St#channel_st.joined_nicks, [Nickname])}};
 
-loop_channel(_St,_Msg) ->
-	{ok,_St}.
+loop_channel(St,{leave, Pid}) ->
+	{ok, St#channel_st{joined_pids = lists:delete(Pid, St#channel_st.joined_pids) } };
+
+loop_channel(St,{message_to_all, Msg, Pid, Nickname}) ->
+	msg_to_all(St#channel_st.joined_pids, Msg, Pid, Nickname, St#channel_st.channel_name),
+	{ok, St}.
+
+msg_to_all([], _Msg, _Pid, _Nickname, _Channel_name) ->
+	ok;
+
+msg_to_all([H|T], Msg, Pid, Nickname, Channel_name) ->
+	case H == Pid of
+		true ->
+			msg_to_all(T, Msg, Pid, Nickname, Channel_name);
+		false ->
+			genserver:request(H, {Channel_name, Nickname, Msg}),
+			msg_to_all(T, Msg, Pid, Nickname, Channel_name)
+	end.
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

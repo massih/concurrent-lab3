@@ -1,7 +1,17 @@
 -module(client).
--export([loop/2, initial_state/2]).
+-export([main/1, initial_state/2]).
 -import(helper, [start/3, request/2, request/3, requestAsync/2, timeSince/1]).
 -include_lib("./defs.hrl").
+
+
+main(State) ->
+    receive
+        {request, From, Ref, Request} ->
+            {Response, NextState} = loop(State, Request),
+            From ! {result, Ref, Response},
+            main(NextState)
+    end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Connect to a server
@@ -11,12 +21,11 @@ loop(St, {connect, Server}) ->
         true ->
             {{error, user_already_connected, "You are already connected"}, St};
         false ->
-           % genserver:request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})  
-            case catch (genserver:request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})) of
+            case catch (helper:request(list_to_atom(Server), {connect, self() , St#cl_st.nickname})) of
                 ok ->
                     {ok, St#cl_st{server = Server} } ;
                 {'EXIT', {error, nick_already_taken}} ->
-                    { {error, user_already_connected,"The nickname is already taken"}, St};
+                    { {error, user_already_connected, "The nickname is already taken"}, St};
                 {'EXIT',_Reason} ->
                     { {error, server_not_reached,"Server not found"}, St}
             end
@@ -32,7 +41,7 @@ loop(St, disconnect) ->
         false ->
             case length(St#cl_st.channels) == 0 of
                 true ->
-                    case catch(genserver:request(list_to_atom(St#cl_st.server), {disconnect, self() , St#cl_st.nickname})) of
+                    case catch(helper:request(list_to_atom(St#cl_st.server), {disconnect, self() , St#cl_st.nickname})) of
                          ok ->
                             {ok, St#cl_st{server = none} } ;
                         {'EXIT',_Reason} ->
@@ -56,13 +65,12 @@ loop(St,{join, Channel}) ->
                 true -> 
                     {{error, user_already_joined, "You are already join to this channel"}, St};
                 false ->
-                    case catch genserver:request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
+                    case catch helper:request(list_to_atom(St#cl_st.server), {join, self(), Channel, St#cl_st.nickname}) of
                         ok ->
                             {ok, St#cl_st{ channels = lists:append(St#cl_st.channels, [Channel])}};
 
                         {'EXIT',_Reason} ->
-                            { {error, server_not_reached, _Reason}, St}
-
+                            { {error, server_not_reached, _Reason }, St}
                     end
             end        
     end;
@@ -77,8 +85,12 @@ loop(St, {leave, Channel}) ->
         false ->
             case lists:member(Channel, St#cl_st.channels) of
                 true ->
-                    genserver:request(list_to_atom(Channel), {leave, self() } ),
-                    {ok, St#cl_st{channels = lists:delete(Channel, St#cl_st.channels) } };
+                    case catch helper:request(list_to_atom(Channel), {leave, self() }) of
+                        ok ->
+                            {ok, St#cl_st{channels = lists:delete(Channel, St#cl_st.channels) } };
+                        {'EXIT',_Reason} ->
+                            { {error, server_not_reached, _Reason}, St}
+                    end;
                 false ->
                     {{error, user_not_joined, "You are not member of such channel"}, St}
             end
@@ -90,8 +102,12 @@ loop(St, {leave, Channel}) ->
 loop(St, {msg_from_GUI, Channel, Msg}) ->
     case lists:member(Channel, St#cl_st.channels) of
         true ->
-            genserver:request(list_to_atom(Channel), {message_to_all, Msg, self(), St#cl_st.nickname}),
-            {ok, St};
+            case catch helper:request(list_to_atom(Channel), {message_to_all, Msg, self(), St#cl_st.nickname}) of
+                ok ->
+                    {ok, St};
+                {'EXIT',_Reason} ->
+                    { {error, server_not_reached, _Reason}, St}
+            end;
         false ->
             {{error, user_not_joined, "You are not a member of this channel"}, St}
     end;
@@ -99,7 +115,7 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% WhoIam, Show the user's nickname
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-loop(St, whoiam) ->
+loop(St, whoami) ->
     {St#cl_st.nickname, St} ;
 
 %%%%%%%%%%%%%%%%%%%%%
@@ -113,29 +129,38 @@ loop(St,{nick, Nick}) ->
             {{error, user_already_connected, "To change the nickname execute /disconnect first"}, St}
     end;
 
-%%%%%%%%%
-%%% Debug
-%%%%%%%%%
-loop(St, debug) ->
-    {St, St} ;
-
 %%%%%%%%%%%%%%%%%%%%%
 %%%% Incoming message
 %%%%%%%%%%%%%%%%%%%%%
-loop(St = #cl_st { gui = GUIName }, MsgFromClient) ->
-    {Channel, Name, Msg} = decompose_msg(MsgFromClient),
+loop(St = #cl_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
     gen_server:call(list_to_atom(GUIName), {msg_to_GUI, Channel, Name++"> "++Msg}),
+    {ok, St};
+
+loop(St,{ping, Destination}) ->
+    if
+        St#cl_st.server == none ->
+            {{error, user_not_connected, "You have to connect to a server first"}, St};
+        true ->
+            St#cl_st{pingTime = now()},
+            case catch helper:request(list_to_atom(St#cl_st.server), {ping_message, self(), Destination}) of
+                ok ->
+                    {ok, St};
+                {error, user_not_found} ->
+                    {{error, user_not_found, "There is no such a user"}, St}
+            end
+    end;
+
+
+%%%%%%%%%%%%%%%%%%%%%
+%%%% Incoming PONG message
+%%%%%%%%%%%%%%%%%%%%%
+loop(St = #cl_st { gui = GUIName }, {incoming_pong_msg, Pid, Name, Msg}) ->
+
+    gen_server:call(list_to_atom(GUIName), {msg_to_SYSTEM, io_lib:format("Pong ~s: ~pms", [UserNick,Diff])}),
     {ok, St}.
-
-
-% This function will take a message from the client and
-% decomposed in the parts needed to tell the GUI to display
-% it in the right chat room.
-decompose_msg(Msg) ->
-    {_, _, _} = Msg.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Client initial state
 %%%%%%%%%%%%%%%%%%%%%%%%%
 initial_state(Nick, GUIName) ->
-    #cl_st { nickname = Nick, gui = GUIName, server = none, channels = [] }.
+    #cl_st { nickname = Nick, gui = GUIName, server = none, channels = [] , pingTime = 0}.

@@ -37,12 +37,14 @@ loop(St, {disconnect, Pid , Client}) ->
 	pidNick = lists:delete([{Pid, Client}], St#server_st.pidNick)},
 	{ok,  NewSt};
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Handeling PING message to destination
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 loop(St, {ping_message, Pid, Destination}) ->
 	case lists:member(Destination, St#server_st.connected_nicks) of
 		true ->
-			{DestPid, DestNick} = lists:keyfind(Destination, 2, St#server_st.pidNick),
-			helper:requestAsync(list_to_atom(DestPid), {ping_message, Pid}),
+			{DestPid, _DestNick} = lists:keyfind(Destination, 2, St#server_st.pidNick),
+			helper:requestAsync(DestPid, {ping_message, Pid}),
 			{ok, St};
 		false ->
 			{{error, user_not_found}, St}

@@ -136,28 +136,36 @@ loop(St = #cl_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
     gen_server:call(list_to_atom(GUIName), {msg_to_GUI, Channel, Name++"> "++Msg}),
     {ok, St};
 
+%%%%%%%%%%%%%%%%%%%%%
+%%%% Sending PING message
+%%%%%%%%%%%%%%%%%%%%%
 loop(St,{ping, Destination}) ->
     if
         St#cl_st.server == none ->
             {{error, user_not_connected, "You have to connect to a server first"}, St};
         true ->
-            St#cl_st{pingTime = now()},
             case catch helper:request(list_to_atom(St#cl_st.server), {ping_message, self(), Destination}) of
                 ok ->
-                    {ok, St};
+                    {ok, St#cl_st{pingTime = now()}};
                 {error, user_not_found} ->
                     {{error, user_not_found, "There is no such a user"}, St}
             end
     end;
 
+%%%%%%%%%%%%%%%%%%%%%
+%%%% Sending PONG message
+%%%%%%%%%%%%%%%%%%%%%
+loop(St, {ping_message, Pid}) ->
+    helper:requestAsync(Pid, {pong_msg, St#cl_st.nickname}),
+    {ok, St};
 
 %%%%%%%%%%%%%%%%%%%%%
 %%%% Incoming PONG message
 %%%%%%%%%%%%%%%%%%%%%
-loop(St = #cl_st { gui = GUIName }, {incoming_pong_msg, Pid, Name, Msg}) ->
-
+loop(St = #cl_st { gui = GUIName }, {pong_msg, UserNick}) ->
+    Diff = helper:timeSince(St#cl_st.pingTime),
     gen_server:call(list_to_atom(GUIName), {msg_to_SYSTEM, io_lib:format("Pong ~s: ~pms", [UserNick,Diff])}),
-    {ok, St}.
+    {ok, St#cl_st{pingTime = 0}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Client initial state
